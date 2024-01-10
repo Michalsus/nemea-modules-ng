@@ -1,0 +1,25 @@
+name: build
+
+on: [workflow_call]
+    
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: ['rockylinux:9', 'oraclelinux:8', 'oraclelinux:9', 'fedora:38']
+    runs-on: ubuntu-latest
+    container: ${{ matrix.os }}
+    steps:
+    - name: Install dependencies
+      run: |
+        dnf install -y dnf-plugins-core
+        dnf -y copr enable @CESNET/NEMEA
+        dnf install -y make gcc-c++ libtrap-devel unirec cmake3 git rpm-build
+    - name: Check out repository code
+      uses: actions/checkout@v4
+    - name: Mark github workspace as safe
+      run: git config --system --add safe.directory $PWD
+    - name: make
+      run: make
+    - name: make rpm
+      run: make rpm

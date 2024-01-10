@@ -1,0 +1,10 @@
+name: Continuous Integration pipeline
+
+on: push
+    
+jobs:
+  check:
+    uses: ./.github/workflows/check.yml
+  build:
+    uses: ./.github/workflows/build.yml
+    needs: check
