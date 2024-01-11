@@ -4,6 +4,7 @@ add_executable(whitelist
 	csvConfigParser.cpp
 	ipAddressPrefix.cpp
 	whitelistRuleBuilder.cpp
+	whitelist.cpp
 )
 
 target_link_libraries(whitelist PRIVATE
