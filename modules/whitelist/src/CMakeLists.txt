@@ -13,6 +13,7 @@ target_link_libraries(whitelist PRIVATE
 	unirec::unirec++
 	unirec::unirec
 	trap::trap
+	argparse
 )
 
 install(TARGETS whitelist DESTINATION ${INSTALL_DIR_BIN})
