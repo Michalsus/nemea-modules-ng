@@ -12,7 +12,7 @@ jobs:
     - name: Install dependencies
       run: |
         dnf copr enable @CESNET/NEMEA
-        dnf install -y make gcc-c++ clang clang-tools-extra libtrap-devel unirec cmake3 git rpm-build
+        dnf install -y make gcc-c++ clang clang-tools-extra libtrap-devel unirec cmake3 git rpm-build fuse3-devel
     - name: make format-check
       run: make format
     - name: make tidy-check

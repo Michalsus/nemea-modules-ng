@@ -16,7 +16,7 @@ jobs:
       run: |
         dnf install -y dnf-plugins-core
         dnf -y copr enable @CESNET/NEMEA
-        dnf install -y make gcc-c++ libtrap-devel unirec cmake3 git rpm-build
+        dnf install -y make gcc-c++ libtrap-devel unirec cmake3 git rpm-build fuse3-devel
     - name: Check out repository code
       uses: actions/checkout@v4
     - name: Mark github workspace as safe
