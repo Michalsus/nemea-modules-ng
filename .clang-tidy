@@ -4,6 +4,8 @@ Checks: '
   bugprone-*,
   clang-analyzer-*,
   misc-*,
+  -misc-no-recursion,
+  -misc-use-anonymous-namespace,
   modernize-*,
   performance-*,
   readability-*,
