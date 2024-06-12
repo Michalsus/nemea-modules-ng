@@ -6,6 +6,7 @@ Checks: '
   misc-*,
   -misc-no-recursion,
   -misc-use-anonymous-namespace,
+  -misc-include-cleaner,
   modernize-*,
   performance-*,
   readability-*,
