@@ -3,11 +3,14 @@ add_executable(whitelist
 	configParser.cpp
 	csvConfigParser.cpp
 	ipAddressPrefix.cpp
+	whitelistRule.cpp
 	whitelistRuleBuilder.cpp
 	whitelist.cpp
 )
 
 target_link_libraries(whitelist PRIVATE
+	telemetry::telemetry
+	telemetry::appFs
 	common
 	rapidcsv
 	unirec::unirec++

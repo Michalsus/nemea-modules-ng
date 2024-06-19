@@ -17,7 +17,8 @@ It identifies and forwards records that do not match to the whitelist rules.
 - `-vvv`             Be even more verbose.
 
 ### Module specific parameters
-- `-w --whitelist <format>`  Whitelist module rules in CSV format
+- `-w, --whitelist <file>`  Whitelist module rules in CSV format
+- `-m, --appfs-mountpoint <path>` Path where the appFs directory will be mounted
 
 ## CSV whitelist format
 The first row of CSV specifies the unirec types and names of fields that will be
@@ -59,3 +60,17 @@ output interface "trap_out."
 
 $ whitelist -i u:trap_in,u:trap_out -w csvWhitelist.csv
 ```
+
+## Telemetry data format
+```
+├─ input/
+│  └─ stats
+└─ whitelist/
+   ├─ aggStats
+   └─ rules/
+      ├─ 0
+      ├─ 1
+      └ ...
+```
+
+Each whitelist rule has its own file named according to the order of the rules in the configuration file.

@@ -1,6 +1,7 @@
 /**
  * @file
  * @author Pavel Siska <siska@cesnet.cz>
+ * @author Daniel Pelanek <xpeland00@vutbr.cz>
  * @brief Implementation of the Whitelist class.
  *
  * SPDX-License-Identifier: BSD-3-Clause
@@ -19,95 +20,15 @@
 #include <string_view>
 #include <variant>
 
-namespace {
-
-template <typename UnirecType, typename VariantType = UnirecType>
-bool compareField(
-	const Nemea::UnirecRecordView& unirecRecordView,
-	ur_field_id_t unirecFieldId,
-	const std::optional<Whitelist::RuleFieldValue>& fieldValue)
-{
-	if (!fieldValue.has_value()) {
-		return true;
-	}
-
-	UnirecType recordValue = unirecRecordView.getFieldAsType<UnirecType>(unirecFieldId);
-	VariantType variantValue = std::get<VariantType>(fieldValue.value());
-
-	if constexpr (std::is_same_v<UnirecType, std::string_view>) {
-		return std::regex_search(recordValue.data(), variantValue);
-	} else if constexpr (std::is_same_v<UnirecType, Nemea::IpAddress>) {
-		return variantValue.isBelong(recordValue);
-	} else {
-		return recordValue == variantValue;
-	}
-}
-
-bool isRuleFieldMatched(
-	const Whitelist::RuleField& ruleField,
-	const Nemea::UnirecRecordView& unirecRecordView)
-{
-	const auto& [unirecFieldId, fieldPattern] = ruleField;
-
-	switch (ur_get_type(unirecFieldId)) {
-	case UR_TYPE_CHAR:
-		return compareField<char>(unirecRecordView, unirecFieldId, fieldPattern);
-	case UR_TYPE_STRING:
-		return compareField<std::string_view, std::regex>(
-			unirecRecordView,
-			unirecFieldId,
-			fieldPattern);
-		break;
-	case UR_TYPE_UINT8:
-		return compareField<uint8_t>(unirecRecordView, unirecFieldId, fieldPattern);
-		break;
-	case UR_TYPE_INT8:
-		return compareField<int8_t>(unirecRecordView, unirecFieldId, fieldPattern);
-		break;
-	case UR_TYPE_UINT16:
-		return compareField<uint16_t>(unirecRecordView, unirecFieldId, fieldPattern);
-		break;
-	case UR_TYPE_INT16:
-		return compareField<int16_t>(unirecRecordView, unirecFieldId, fieldPattern);
-		break;
-	case UR_TYPE_UINT32:
-		return compareField<uint32_t>(unirecRecordView, unirecFieldId, fieldPattern);
-		break;
-	case UR_TYPE_INT32:
-		return compareField<int32_t>(unirecRecordView, unirecFieldId, fieldPattern);
-		break;
-	case UR_TYPE_UINT64:
-		return compareField<uint64_t>(unirecRecordView, unirecFieldId, fieldPattern);
-		break;
-	case UR_TYPE_INT64:
-		return compareField<int64_t>(unirecRecordView, unirecFieldId, fieldPattern);
-		break;
-	case UR_TYPE_IP:
-		return compareField<Nemea::IpAddress, Whitelist::IpAddressPrefix>(
-			unirecRecordView,
-			unirecFieldId,
-			fieldPattern);
-		break;
-	default:
-		throw std::runtime_error("Unsopported format");
-	}
-
-	return false;
-}
-
-bool isWhitelistRuleMatched(
-	const Whitelist::WhitelistRule& whitelistRule,
-	const Nemea::UnirecRecordView& unirecRecordView)
-{
-	auto lambdaPredicate
-		= [&](const auto& ruleField) { return !isRuleFieldMatched(ruleField, unirecRecordView); };
-
-	return std::any_of(whitelistRule.begin(), whitelistRule.end(), lambdaPredicate);
-}
-
-} // namespace
-
 namespace Whitelist {
+
+static telemetry::Content createWhitelistRuleTelemetryContent(const WhitelistRule& rule)
+{
+	const RuleStats& ruleStats = rule.getStats();
+	telemetry::Dict dict;
+	dict["matchedCount"] = telemetry::Scalar(ruleStats.matchedCount);
+	return dict;
+}
 
 Whitelist::Whitelist(const ConfigParser* configParser)
 {
@@ -121,13 +42,37 @@ Whitelist::Whitelist(const ConfigParser* configParser)
 	}
 }
 
-bool Whitelist::isWhitelisted(const Nemea::UnirecRecordView& unirecRecordView) const
+bool Whitelist::isWhitelisted(const Nemea::UnirecRecordView& unirecRecordView)
 {
-	auto lambdaPredicate = [&](const auto& whitelistRule) {
-		return !isWhitelistRuleMatched(whitelistRule, unirecRecordView);
-	};
+	auto lambdaPredicate
+		= [&](auto& whitelistRule) { return !whitelistRule.isMatched(unirecRecordView); };
 
 	return std::any_of(m_whitelistRules.begin(), m_whitelistRules.end(), lambdaPredicate);
+}
+
+void Whitelist::setTelemetryDirectory(const std::shared_ptr<telemetry::Directory>& directory)
+{
+	m_holder.add(directory);
+
+	auto rulesDirectory = directory->addDir("rules");
+
+	for (size_t ruleIndex = 0; ruleIndex < m_whitelistRules.size(); ruleIndex++) {
+		const auto& whitelistRule = m_whitelistRules.at(ruleIndex);
+		const telemetry::FileOps fileOps
+			= {[&whitelistRule]() { return createWhitelistRuleTelemetryContent(whitelistRule); },
+			   nullptr};
+		auto ruleFile = rulesDirectory->addFile(std::to_string(ruleIndex), fileOps);
+		m_holder.add(ruleFile);
+	}
+
+	const telemetry::AggOperation aggFileOps = {
+		telemetry::AggMethodType::SUM,
+		"matchedCount",
+		"totalMatchedCount",
+	};
+
+	auto aggFile = directory->addAggFile("aggStats", "rules/.*", {aggFileOps});
+	m_holder.add(aggFile);
 }
 
 } // namespace Whitelist
