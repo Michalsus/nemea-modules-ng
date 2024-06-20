@@ -11,11 +11,10 @@
 #include <charconv>
 #include <optional>
 #include <regex>
+#include <sstream>
 #include <stdexcept>
 
-#include <iostream>
-
-namespace {
+namespace Whitelist {
 
 template <typename T>
 std::optional<T> convertStringToType(const std::string& str)
@@ -32,7 +31,7 @@ std::optional<T> convertStringToType(const std::string& str)
 	throw std::runtime_error("convertStringToType() has failed");
 }
 
-std::optional<Whitelist::IpAddressPrefix> convertStringToIpAddressPrefix(const std::string& ipStr)
+std::optional<IpAddressPrefix> convertStringToIpAddressPrefix(const std::string& ipStr)
 {
 	if (ipStr.empty()) {
 		return std::nullopt;
@@ -53,9 +52,9 @@ std::optional<Whitelist::IpAddressPrefix> convertStringToIpAddressPrefix(const s
 	size_t prefixNumber;
 	if (prefixPart.empty()) {
 		if (ipAddress.isIpv4()) {
-			prefixNumber = Whitelist::IpAddressPrefix::IPV4_MAX_PREFIX;
+			prefixNumber = IpAddressPrefix::IPV4_MAX_PREFIX;
 		} else {
-			prefixNumber = Whitelist::IpAddressPrefix::IPV6_MAX_PREFIX;
+			prefixNumber = IpAddressPrefix::IPV6_MAX_PREFIX;
 		}
 	} else {
 		if (std::from_chars(prefixPart.data(), prefixPart.data() + prefixPart.size(), prefixNumber)
@@ -64,12 +63,8 @@ std::optional<Whitelist::IpAddressPrefix> convertStringToIpAddressPrefix(const s
 			throw std::runtime_error("convertStringToIpAddressPrefix() has failed");
 		}
 	}
-	return Whitelist::IpAddressPrefix(ipAddress, prefixNumber);
+	return IpAddressPrefix(ipAddress, prefixNumber);
 }
-
-} // namespace
-
-namespace Whitelist {
 
 WhitelistRuleBuilder::WhitelistRuleBuilder(const std::string& unirecTemplateDescription)
 {
@@ -104,12 +99,14 @@ void WhitelistRuleBuilder::validateUnirecFieldId(const std::string& fieldName, i
 WhitelistRule
 WhitelistRuleBuilder::build(const ConfigParser::WhitelistRuleDescription& whitelistRuleDescription)
 {
-	WhitelistRule whitelistRule = {};
+	std::vector<RuleField> ruleFields;
+
 	for (const auto& fieldValue : whitelistRuleDescription) {
-		auto ruleField = createRuleField(fieldValue, m_unirecFieldsId.at(whitelistRule.size()));
-		whitelistRule.emplace_back(ruleField);
+		auto ruleField = createRuleField(fieldValue, m_unirecFieldsId.at(ruleFields.size()));
+		ruleFields.emplace_back(ruleField);
 	}
-	return whitelistRule;
+
+	return WhitelistRule {ruleFields};
 }
 
 RuleField

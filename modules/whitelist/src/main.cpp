@@ -14,11 +14,14 @@
 
 #include "csvConfigParser.hpp"
 #include "logger.hpp"
+#include "unirec-telemetry.hpp"
 #include "whitelist.hpp"
 
+#include <appFs.hpp>
 #include <argparse/argparse.hpp>
 #include <iostream>
 #include <stdexcept>
+#include <telemetry.hpp>
 #include <unirec++/unirec.hpp>
 
 using namespace Nemea;
@@ -31,7 +34,7 @@ using namespace Nemea;
  *
  * @param biInterface Bidirectional interface for Unirec communication.
  */
-void handleFormatChange(UnirecBidirectionalInterface& biInterface)
+static void handleFormatChange(UnirecBidirectionalInterface& biInterface)
 {
 	biInterface.changeTemplate();
 }
@@ -45,9 +48,8 @@ void handleFormatChange(UnirecBidirectionalInterface& biInterface)
  * @param biInterface Bidirectional interface for Unirec communication.
  * @param whitelist Whitelist instance for checking Unirec records.
  */
-void processNextRecord(
-	UnirecBidirectionalInterface& biInterface,
-	const Whitelist::Whitelist& whitelist)
+static void
+processNextRecord(UnirecBidirectionalInterface& biInterface, Whitelist::Whitelist& whitelist)
 {
 	std::optional<UnirecRecordView> unirecRecord = biInterface.receive();
 	if (!unirecRecord) {
@@ -71,9 +73,8 @@ void processNextRecord(
  * @param biInterface Bidirectional interface for Unirec communication.
  * @param whitelist Whitelist instance for checking Unirec records.
  */
-void processUnirecRecords(
-	UnirecBidirectionalInterface& biInterface,
-	const Whitelist::Whitelist& whitelist)
+static void
+processUnirecRecords(UnirecBidirectionalInterface& biInterface, Whitelist::Whitelist& whitelist)
 {
 	while (true) {
 		try {
@@ -92,15 +93,25 @@ int main(int argc, char** argv)
 {
 	argparse::ArgumentParser program("Whitelist");
 
-	program.add_argument("-w", "--whitelist")
-		.required()
-		.help("specify the whitelist file.")
-		.metavar("csv_file");
-
-	Unirec unirec({1, 1, "Whitelist", "Unirec whitelist module"});
-
 	nm::loggerInit();
 	auto logger = nm::loggerGet("main");
+
+	try {
+		program.add_argument("-w", "--whitelist")
+			.required()
+			.help("specify the whitelist file.")
+			.metavar("csv_file");
+
+		program.add_argument("-m", "--appfs-mountpoint")
+			.required()
+			.help("path where the appFs directory will be mounted")
+			.default_value(std::string(""));
+	} catch (std::exception& ex) {
+		logger->error(ex.what());
+		return EXIT_FAILURE;
+	}
+
+	Unirec unirec({1, 1, "Whitelist", "Unirec whitelist module"});
 
 	try {
 		unirec.init(argc, argv);
@@ -120,6 +131,28 @@ int main(int argc, char** argv)
 		return EXIT_FAILURE;
 	}
 
+	std::shared_ptr<telemetry::Directory> telemetryRootDirectory;
+	telemetryRootDirectory = telemetry::Directory::create();
+
+	std::unique_ptr<telemetry::appFs::AppFsFuse> appFs;
+
+	try {
+		auto mountPoint = program.get<std::string>("--appfs-mountpoint");
+		if (!mountPoint.empty()) {
+			const bool tryToUnmountOnStart = true;
+			const bool createMountPoint = true;
+			appFs = std::make_unique<telemetry::appFs::AppFsFuse>(
+				telemetryRootDirectory,
+				mountPoint,
+				tryToUnmountOnStart,
+				createMountPoint);
+			appFs->start();
+		}
+	} catch (std::exception& ex) {
+		logger->error(ex.what());
+		return EXIT_FAILURE;
+	}
+
 	try {
 		std::unique_ptr<Whitelist::ConfigParser> whitelistConfigParser
 			= std::make_unique<Whitelist::CsvConfigParser>(program.get<std::string>("--whitelist"));
@@ -129,7 +162,14 @@ int main(int argc, char** argv)
 		UnirecBidirectionalInterface biInterface = unirec.buildBidirectionalInterface();
 		biInterface.setRequieredFormat(requiredUnirecTemplate);
 
-		const Whitelist::Whitelist whitelist(whitelistConfigParser.get());
+		auto telemetryInputDirectory = telemetryRootDirectory->addDir("input");
+		const telemetry::FileOps inputFileOps
+			= {[&biInterface]() { return nm::getInterfaceTelemetry(biInterface); }, nullptr};
+		const auto inputFile = telemetryInputDirectory->addFile("stats", inputFileOps);
+
+		Whitelist::Whitelist whitelist(whitelistConfigParser.get());
+		auto telemetryWhitelistDirectory = telemetryRootDirectory->addDir("whitelist");
+		whitelist.setTelemetryDirectory(telemetryWhitelistDirectory);
 
 		processUnirecRecords(biInterface, whitelist);
 
