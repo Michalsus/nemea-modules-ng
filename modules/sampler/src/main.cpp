@@ -12,10 +12,13 @@
  */
 
 #include "logger.hpp"
+#include "unirec-telemetry.hpp"
 
+#include <appFs.hpp>
 #include <argparse/argparse.hpp>
 #include <iostream>
 #include <stdexcept>
+#include <telemetry.hpp>
 #include <unirec++/unirec.hpp>
 
 using namespace Nemea;
@@ -108,10 +111,36 @@ int main(int argc, char** argv)
 			.help(
 				"Specify the sampling rate 1:r. Every -rth sample will be forwarded to the output.")
 			.scan<'i', int>();
+		program.add_argument("-m", "--appfs-mountpoint")
+			.required()
+			.help("path where the appFs directory will be mounted")
+			.default_value(std::string(""));
 		program.parse_args(argc, argv);
 	} catch (const std::exception& ex) {
 		logger->error(ex.what());
 		std::cerr << program;
+		return EXIT_FAILURE;
+	}
+
+	std::shared_ptr<telemetry::Directory> telemetryRootDirectory;
+	telemetryRootDirectory = telemetry::Directory::create();
+
+	std::unique_ptr<telemetry::appFs::AppFsFuse> appFs;
+
+	try {
+		auto mountPoint = program.get<std::string>("--appfs-mountpoint");
+		if (!mountPoint.empty()) {
+			const bool tryToUnmountOnStart = true;
+			const bool createMountPoint = true;
+			appFs = std::make_unique<telemetry::appFs::AppFsFuse>(
+				telemetryRootDirectory,
+				mountPoint,
+				tryToUnmountOnStart,
+				createMountPoint);
+			appFs->start();
+		}
+	} catch (std::exception& ex) {
+		logger->error(ex.what());
 		return EXIT_FAILURE;
 	}
 
@@ -123,7 +152,11 @@ int main(int argc, char** argv)
 		}
 
 		UnirecBidirectionalInterface biInterface = unirec.buildBidirectionalInterface();
-		biInterface.setRequieredFormat("");
+
+		auto telemetryInputDirectory = telemetryRootDirectory->addDir("input");
+		const telemetry::FileOps inputFileOps
+			= {[&biInterface]() { return nm::getInterfaceTelemetry(biInterface); }, nullptr};
+		const auto inputFile = telemetryInputDirectory->addFile("stats", inputFileOps);
 
 		processUnirecRecords(biInterface, samplingRate);
 

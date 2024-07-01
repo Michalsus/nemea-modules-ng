@@ -17,6 +17,7 @@ The module performs sampling of unirec interface data
 
 ### Module specific parameters
 - `-r --rate <int>`  Specify the sampling rate 1:r. Every -rth sample will be forwarded to the output.
+- `-m, --appfs-mountpoint <path>` Path where the appFs directory will be mounted
 
 
 ## Usage Examples

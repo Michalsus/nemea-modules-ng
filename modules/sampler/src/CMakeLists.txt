@@ -3,6 +3,8 @@ add_executable(sampler
 )
 
 target_link_libraries(sampler PRIVATE
+	telemetry::telemetry
+	telemetry::appFs
 	common
 	rapidcsv
 	unirec::unirec++
