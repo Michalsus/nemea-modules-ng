@@ -55,5 +55,4 @@ private:
     Line* tail; // Pointer to the newest element
     int count;  // Current count of elements
     int maxlines; // Maximum number of elements
-}; // TODO: destructor of the buffer
-
+};
