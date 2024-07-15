@@ -96,6 +96,21 @@ int main(int argc, char** argv)
 	auto logger = nm::loggerGet("main");
 
 	try {
+		program.add_argument("-r", "--rate")
+			.required()
+			.help(
+				"Specify the sampling rate 1:r. Every -rth sample will be forwarded to the output.")
+			.scan<'i', int>();
+		program.add_argument("-m", "--appfs-mountpoint")
+			.required()
+			.help("path where the appFs directory will be mounted")
+			.default_value(std::string(""));
+	} catch (const std::exception& ex) {
+		logger->error(ex.what());
+		return EXIT_FAILURE;
+	}
+
+	try {
 		unirec.init(argc, argv);
 	} catch (HelpException& ex) {
 		std::cerr << program;
@@ -106,19 +121,9 @@ int main(int argc, char** argv)
 	}
 
 	try {
-		program.add_argument("-r", "--rate")
-			.required()
-			.help(
-				"Specify the sampling rate 1:r. Every -rth sample will be forwarded to the output.")
-			.scan<'i', int>();
-		program.add_argument("-m", "--appfs-mountpoint")
-			.required()
-			.help("path where the appFs directory will be mounted")
-			.default_value(std::string(""));
 		program.parse_args(argc, argv);
 	} catch (const std::exception& ex) {
 		logger->error(ex.what());
-		std::cerr << program;
 		return EXIT_FAILURE;
 	}
 
