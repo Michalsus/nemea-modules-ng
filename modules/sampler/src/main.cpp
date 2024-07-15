@@ -1,6 +1,7 @@
 /**
  * @file
  * @author Karel Hynek <hynekkar@cesnet.cz>
+ * @author Pavel Siska <siska@cesnet.cz>
  * @brief Sampling Module: Sample flowdata
  *
  * This file contains the main function and supporting functions for the Unirec Sampling Module.
@@ -12,16 +13,27 @@
  */
 
 #include "logger.hpp"
+#include "sampler.hpp"
 #include "unirec-telemetry.hpp"
 
 #include <appFs.hpp>
 #include <argparse/argparse.hpp>
+#include <atomic>
+#include <csignal>
 #include <iostream>
 #include <stdexcept>
 #include <telemetry.hpp>
 #include <unirec++/unirec.hpp>
 
 using namespace Nemea;
+
+std::atomic<bool> g_stopFlag(false);
+
+void signalHandler(int signum)
+{
+	nm::loggerGet("signalHandler")->info("Interrupt signal {} received", signum);
+	g_stopFlag.store(true);
+}
 
 /**
  * @brief Handle a format change exception by adjusting the template.
@@ -43,22 +55,19 @@ void handleFormatChange(UnirecBidirectionalInterface& biInterface)
  * and performs sampling.
  *
  * @param biInterface Bidirectional interface for Unirec communication.
- * @param samplingRate Sampling rate value defined by user.
+ * @param sampler Sampler class for sampling.
  */
 
-void processNextRecord(UnirecBidirectionalInterface& biInterface, int samplingRate)
+void processNextRecord(UnirecBidirectionalInterface& biInterface, Sampler::Sampler& sampler)
 {
-	static int samplingCounter = 0;
 	std::optional<UnirecRecordView> unirecRecord = biInterface.receive();
 	if (!unirecRecord) {
 		return;
 	}
 
-	if (samplingCounter == 0) {
+	if (sampler.shouldBeSampled()) {
 		biInterface.send(*unirecRecord);
 	}
-
-	samplingCounter = (++samplingCounter >= samplingRate) ? (0) : samplingCounter;
 }
 
 /**
@@ -69,13 +78,13 @@ void processNextRecord(UnirecBidirectionalInterface& biInterface, int samplingRa
  * an end-of-file condition is encountered.
  *
  * @param biInterface Bidirectional interface for Unirec communication.
- * @param samplingRate Sampling rate value defined by user.
+ * @param sampler Sampler class for sampling.
  */
-void processUnirecRecords(UnirecBidirectionalInterface& biInterface, int samplingRate)
+void processUnirecRecords(UnirecBidirectionalInterface& biInterface, Sampler::Sampler& sampler)
 {
-	while (true) {
+	while (!g_stopFlag.load()) {
 		try {
-			processNextRecord(biInterface, samplingRate);
+			processNextRecord(biInterface, sampler);
 		} catch (FormatChangeException& ex) {
 			handleFormatChange(biInterface);
 		} catch (EoFException& ex) {
@@ -86,6 +95,16 @@ void processUnirecRecords(UnirecBidirectionalInterface& biInterface, int samplin
 	}
 }
 
+telemetry::Content getSamplerTelemetry(const Sampler::Sampler& sampler)
+{
+	auto stats = sampler.getStats();
+
+	telemetry::Dict dict;
+	dict["totalRecords"] = stats.totalRecords;
+	dict["sampledRecords"] = stats.sampledRecords;
+	return dict;
+}
+
 int main(int argc, char** argv)
 {
 	argparse::ArgumentParser program("Unirec Sampler");
@@ -94,6 +113,23 @@ int main(int argc, char** argv)
 
 	nm::loggerInit();
 	auto logger = nm::loggerGet("main");
+
+	signal(SIGINT, signalHandler);
+
+	try {
+		program.add_argument("-r", "--rate")
+			.required()
+			.help(
+				"Specify the sampling rate 1:r. Every -rth sample will be forwarded to the output.")
+			.scan<'i', int>();
+		program.add_argument("-m", "--appfs-mountpoint")
+			.required()
+			.help("path where the appFs directory will be mounted")
+			.default_value(std::string(""));
+	} catch (const std::exception& ex) {
+		logger->error(ex.what());
+		return EXIT_FAILURE;
+	}
 
 	try {
 		unirec.init(argc, argv);
@@ -106,19 +142,9 @@ int main(int argc, char** argv)
 	}
 
 	try {
-		program.add_argument("-r", "--rate")
-			.required()
-			.help(
-				"Specify the sampling rate 1:r. Every -rth sample will be forwarded to the output.")
-			.scan<'i', int>();
-		program.add_argument("-m", "--appfs-mountpoint")
-			.required()
-			.help("path where the appFs directory will be mounted")
-			.default_value(std::string(""));
 		program.parse_args(argc, argv);
 	} catch (const std::exception& ex) {
 		logger->error(ex.what());
-		std::cerr << program;
 		return EXIT_FAILURE;
 	}
 
@@ -151,6 +177,8 @@ int main(int argc, char** argv)
 			return EXIT_FAILURE;
 		}
 
+		Sampler::Sampler sampler(samplingRate);
+
 		UnirecBidirectionalInterface biInterface = unirec.buildBidirectionalInterface();
 
 		auto telemetryInputDirectory = telemetryRootDirectory->addDir("input");
@@ -158,7 +186,12 @@ int main(int argc, char** argv)
 			= {[&biInterface]() { return nm::getInterfaceTelemetry(biInterface); }, nullptr};
 		const auto inputFile = telemetryInputDirectory->addFile("stats", inputFileOps);
 
-		processUnirecRecords(biInterface, samplingRate);
+		auto telemetrySamplerDirectory = telemetryRootDirectory->addDir("sampler");
+		const telemetry::FileOps samplerFileOps
+			= {[&sampler]() { return getSamplerTelemetry(sampler); }, nullptr};
+		const auto samplerFile = telemetrySamplerDirectory->addFile("stats", samplerFileOps);
+
+		processUnirecRecords(biInterface, sampler);
 
 	} catch (std::exception& ex) {
 		logger->error(ex.what());

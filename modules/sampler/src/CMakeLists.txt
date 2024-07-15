@@ -1,12 +1,12 @@
 add_executable(sampler
 	main.cpp
+	sampler.cpp
 )
 
 target_link_libraries(sampler PRIVATE
 	telemetry::telemetry
 	telemetry::appFs
 	common
-	rapidcsv
 	unirec::unirec++
 	unirec::unirec
 	trap::trap
