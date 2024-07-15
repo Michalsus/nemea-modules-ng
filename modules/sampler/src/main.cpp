@@ -12,6 +12,7 @@
  */
 
 #include "logger.hpp"
+#include "sampler.hpp"
 #include "unirec-telemetry.hpp"
 
 #include <appFs.hpp>
@@ -53,22 +54,19 @@ void handleFormatChange(UnirecBidirectionalInterface& biInterface)
  * and performs sampling.
  *
  * @param biInterface Bidirectional interface for Unirec communication.
- * @param samplingRate Sampling rate value defined by user.
+ * @param sampler Sampler class for sampling.
  */
 
-void processNextRecord(UnirecBidirectionalInterface& biInterface, int samplingRate)
+void processNextRecord(UnirecBidirectionalInterface& biInterface, Sampler::Sampler& sampler)
 {
-	static int samplingCounter = 0;
 	std::optional<UnirecRecordView> unirecRecord = biInterface.receive();
 	if (!unirecRecord) {
 		return;
 	}
 
-	if (samplingCounter == 0) {
+	if (sampler.shouldBeSampled()) {
 		biInterface.send(*unirecRecord);
 	}
-
-	samplingCounter = (++samplingCounter >= samplingRate) ? (0) : samplingCounter;
 }
 
 /**
@@ -79,13 +77,13 @@ void processNextRecord(UnirecBidirectionalInterface& biInterface, int samplingRa
  * an end-of-file condition is encountered.
  *
  * @param biInterface Bidirectional interface for Unirec communication.
- * @param samplingRate Sampling rate value defined by user.
+ * @param sampler Sampler class for sampling.
  */
-void processUnirecRecords(UnirecBidirectionalInterface& biInterface, int samplingRate)
+void processUnirecRecords(UnirecBidirectionalInterface& biInterface, Sampler::Sampler& sampler)
 {
 	while (!g_stopFlag.load()) {
 		try {
-			processNextRecord(biInterface, samplingRate);
+			processNextRecord(biInterface, sampler);
 		} catch (FormatChangeException& ex) {
 			handleFormatChange(biInterface);
 		} catch (EoFException& ex) {
@@ -168,6 +166,8 @@ int main(int argc, char** argv)
 			return EXIT_FAILURE;
 		}
 
+		Sampler::Sampler sampler(samplingRate);
+
 		UnirecBidirectionalInterface biInterface = unirec.buildBidirectionalInterface();
 
 		auto telemetryInputDirectory = telemetryRootDirectory->addDir("input");
@@ -175,7 +175,7 @@ int main(int argc, char** argv)
 			= {[&biInterface]() { return nm::getInterfaceTelemetry(biInterface); }, nullptr};
 		const auto inputFile = telemetryInputDirectory->addFile("stats", inputFileOps);
 
-		processUnirecRecords(biInterface, samplingRate);
+		processUnirecRecords(biInterface, sampler);
 
 	} catch (std::exception& ex) {
 		logger->error(ex.what());
