@@ -16,12 +16,22 @@
 
 #include <appFs.hpp>
 #include <argparse/argparse.hpp>
+#include <atomic>
+#include <csignal>
 #include <iostream>
 #include <stdexcept>
 #include <telemetry.hpp>
 #include <unirec++/unirec.hpp>
 
 using namespace Nemea;
+
+std::atomic<bool> g_stopFlag(false);
+
+void signalHandler(int signum)
+{
+	nm::loggerGet("signalHandler")->info("Interrupt signal {} received", signum);
+	g_stopFlag.store(true);
+}
 
 /**
  * @brief Handle a format change exception by adjusting the template.
@@ -73,7 +83,7 @@ void processNextRecord(UnirecBidirectionalInterface& biInterface, int samplingRa
  */
 void processUnirecRecords(UnirecBidirectionalInterface& biInterface, int samplingRate)
 {
-	while (true) {
+	while (!g_stopFlag.load()) {
 		try {
 			processNextRecord(biInterface, samplingRate);
 		} catch (FormatChangeException& ex) {
@@ -94,6 +104,8 @@ int main(int argc, char** argv)
 
 	nm::loggerInit();
 	auto logger = nm::loggerGet("main");
+
+	signal(SIGINT, signalHandler);
 
 	try {
 		program.add_argument("-r", "--rate")
