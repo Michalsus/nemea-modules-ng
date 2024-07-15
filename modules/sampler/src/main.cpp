@@ -1,6 +1,7 @@
 /**
  * @file
  * @author Karel Hynek <hynekkar@cesnet.cz>
+ * @author Pavel Siska <siska@cesnet.cz>
  * @brief Sampling Module: Sample flowdata
  *
  * This file contains the main function and supporting functions for the Unirec Sampling Module.
@@ -94,6 +95,16 @@ void processUnirecRecords(UnirecBidirectionalInterface& biInterface, Sampler::Sa
 	}
 }
 
+telemetry::Content getSamplerTelemetry(const Sampler::Sampler& sampler)
+{
+	auto stats = sampler.getStats();
+
+	telemetry::Dict dict;
+	dict["totalRecords"] = stats.totalRecords;
+	dict["sampledRecords"] = stats.sampledRecords;
+	return dict;
+}
+
 int main(int argc, char** argv)
 {
 	argparse::ArgumentParser program("Unirec Sampler");
@@ -174,6 +185,11 @@ int main(int argc, char** argv)
 		const telemetry::FileOps inputFileOps
 			= {[&biInterface]() { return nm::getInterfaceTelemetry(biInterface); }, nullptr};
 		const auto inputFile = telemetryInputDirectory->addFile("stats", inputFileOps);
+
+		auto telemetrySamplerDirectory = telemetryRootDirectory->addDir("sampler");
+		const telemetry::FileOps samplerFileOps
+			= {[&sampler]() { return getSamplerTelemetry(sampler); }, nullptr};
+		const auto samplerFile = telemetrySamplerDirectory->addFile("stats", samplerFileOps);
 
 		processUnirecRecords(biInterface, sampler);
 
