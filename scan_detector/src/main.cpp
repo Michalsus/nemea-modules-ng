@@ -3,7 +3,7 @@
  * @author Michal Matejka <xmatejm00@stud.fit.vutbr.cz>
  * @brief Scan Detector
  *
- * Nemea module for 
+ * Nemea module for finding scanning IP addresses, which addresses they are scanning, which ports and making statistics based on this data.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -22,9 +22,10 @@
 #include <cstdint>
 #include <functional>
 #include <thread>
-#include "CircBuff.cpp"
+#include "CircBuff.cpp"	
 
 using namespace Nemea;
+
 
 /**
  * @brief Hash function for ip_addr_t
@@ -87,8 +88,8 @@ struct SusIpData
 
 //function declarations, definitions are after main
 void handleFormatChange(UnirecBidirectionalInterface& biInterface);
-void processNextRecord(UnirecBidirectionalInterface& biInterface, std::unordered_map& ipMap, std::unordered_map& susIpMap);
-void processUnirecRecords(UnirecBidirectionalInterface& biInterface, std::unordered_map& ipMap, std::unordered_map& susIpMap);
+void processNextRecord(UnirecBidirectionalInterface& biInterface, std::unordered_map<ip_addr_t, TrafficData, IPAddressHash, IPAddressEqual>& ipMap, std::unordered_map<ip_addr_t, SusIpData, IPAddressHash, IPAddressEqual>& susIpMap);
+void processUnirecRecords(UnirecBidirectionalInterface& biInterface, std::unordered_map<ip_addr_t, TrafficData, IPAddressHash, IPAddressEqual>& ipMap, std::unordered_map<ip_addr_t, SusIpData, IPAddressHash, IPAddressEqual>& susIpMap);
 void monitorOfIpMap();
 void monitorOfSusIpMap();
 
@@ -96,8 +97,8 @@ void monitorOfSusIpMap();
 int bufferSize = 1'000'000;
 int minSize = 30;
 double susNorRatio = 0.9;
-double srcDstRatio = 0,5;
-double synSrcRatio = 0,5;
+double srcDstRatio = 0.5;
+double synSrcRatio = 0.5;
 CircularBuffer circBuff(bufferSize);
 std::mutex writeAccess;
 //Hash map for storing statistics about each ip adresses
@@ -174,33 +175,40 @@ void handleFormatChange(UnirecBidirectionalInterface& biInterface)
  * @param ipMap hash table to store every IP currently in the buffer
  * @param susIpMap hash table to store suspicious IP's
  */
-void processNextRecord(UnirecBidirectionalInterface& biInterface, std::unordered_map& ipMap, std::unordered_map& susIpMap)
+void processNextRecord(UnirecBidirectionalInterface& biInterface, std::unordered_map<ip_addr_t, TrafficData, IPAddressHash, IPAddressEqual>& ipMap, std::unordered_map<ip_addr_t, SusIpData, IPAddressHash, IPAddressEqual>& susIpMap)
 {
 	writeAccess.lock();
+	const static ur_field_id_t SRC_IP = ur_get_id_by_name("SRC_IP");
+	const static ur_field_id_t DST_IP = ur_get_id_by_name("DST_IP");
+	const static ur_field_id_t TCP_FLAGS = ur_get_id_by_name("TCP_FLAGS");
+	const static ur_field_id_t DST_PORT = ur_get_id_by_name("DST_PORT");
+
+
 	std::optional<UnirecRecordView> unirecRecord = biInterface.receive();
 	if (!unirecRecord) {
 		return;
 	}
 	//update statistics for incoming record
-	ip_addr_t src = unirecRecord.getFieldAsType<int>("SRC_IP");//?check if the ip is in the sus category
-	ip_addr_t dst = unirecRecord.getFieldAsType<int>("DST_IP");
-	auto tcp = unirecRecord.getFieldAsType<int>("TCP_FLAGS");
+	ip_addr_t src = unirecRecord->getFieldAsType<ip_addr_t>(SRC_IP);//?check if the ip is in the sus category
+	// vs IpAddress src = unirecRecord->getFieldAsType<IpAddress>(SRC_IP);
+	ip_addr_t dst = unirecRecord->getFieldAsType<ip_addr_t>(DST_IP);
+	auto tcp = unirecRecord->getFieldAsType<uint8_t>(TCP_FLAGS);
 	if(susIpMap.find(src) != susIpMap.end()){
 		if(tcp == 2){
 			susIpMap[src].syn++;
 		}
 		//associative array of ips and number of times they were mentioned
-		susIpMap[src].dstIpMap.insert(dst);
+		//susIpMap[src].dstIpMap.insert(dst);
 		susIpMap[src].dstIpMap[dst].count++;
 		//array of ports and number of times they were used
-		auto port = unirecRecord.getFieldAsType<int>("DST_PORT");
-		susIpMap[src].dstIpMap[dst].portMap.insert(port);
+		auto port = unirecRecord->getFieldAsType<uint16_t>(DST_PORT);
+		//susIpMap[src].dstIpMap[dst].portMap.insert(port);
 		susIpMap[src].dstIpMap[dst].portMap[port]++;
 		//insert unirecRecord from suspicious ip
-		susIpMap[src].outRecords.push_back(unirecRecord);
+		susIpMap[src].outRecords.push_back(*unirecRecord);
 	}
 	else if (susIpMap.find(dst) != susIpMap.end()){
-		susIpMap[dst].inRecords.push_back(unirecRecord);
+		susIpMap[dst].inRecords.push_back(*unirecRecord);
 	}
 	else {
 		ipMap[src].src++;
@@ -210,33 +218,33 @@ void processNextRecord(UnirecBidirectionalInterface& biInterface, std::unordered
 		}
 	}
 
-	unirecRecord = circBuff.buffInsert(unirecRecord);
-	if (unirecRecord != nullptr){
-		src = unirecRecord.getFieldAsType<int>("SRC_IP");
-		dst = unirecRecord.getFieldAsType<int>("DST_IP");
+	unirecRecord = circBuff.buffInsert(*unirecRecord);
+	if (!unirecRecord){
+		src = unirecRecord->getFieldAsType<ip_addr_t>(SRC_IP);
+		dst = unirecRecord->getFieldAsType<ip_addr_t>(DST_IP);
 		if (susIpMap.find(src) != susIpMap.end()){
 			//number of only syn traffic from suspicious ip
-			auto tcp = unirecRecord.getFieldAsType<int>("TCP_FLAGS");
+			auto tcp = unirecRecord->getFieldAsType<uint8_t>(TCP_FLAGS);
 			if(tcp == 2){
 				susIpMap[src].syn++;
 			}
 			//associative array of ips and number of times they were mentioned
-			susIpMap[src].dstIpMap.insert(dst);
+			//susIpMap[src].dstIpMap.insert(dst);
 			susIpMap[src].dstIpMap[dst].count++;
 			//array of ports and number of times they were used
-			auto port = unirecRecord.getFieldAsType<int>("DST_PORT");
-			susIpMap[src].dstIpMap[dst].portMap.insert(port);
+			auto port = unirecRecord->getFieldAsType<uint16_t>(DST_PORT);
+			//susIpMap[src].dstIpMap[dst].portMap.insert(port);
 			susIpMap[src].dstIpMap[dst].portMap[port]++;
 			//insert unirecRecord from suspicious ip
-			susIpMap[src].outRecords.push_back(unirecRecord);
+			susIpMap[src].outRecords.push_back(*unirecRecord);
 		}
 		else if (susIpMap.find(dst) != susIpMap.end()){
-			susIpMap[dst].inRecords.push_back(unirecRecord);
+			susIpMap[dst].inRecords.push_back(*unirecRecord);
 		}
 		else {
 			ipMap[src].src--;
 			ipMap[dst].dst--;
-			auto tcp = unirecRecord.getFieldAsType<int>("TCP_FLAGS");
+			auto tcp = unirecRecord->getFieldAsType<uint8_t>(TCP_FLAGS);
 			if(tcp == 2){
 				ipMap[src].syn--;
 			}
@@ -258,7 +266,7 @@ void processNextRecord(UnirecBidirectionalInterface& biInterface, std::unordered
  * @param ipMap hash table to store every IP currently in the buffer
  * @param susIpMap hash table to store suspicious IP's
  */
-void processUnirecRecords(UnirecBidirectionalInterface& biInterface, std::unordered_map& ipMap, std::unordered_map& susIpMap)
+void processUnirecRecords(UnirecBidirectionalInterface& biInterface, std::unordered_map<ip_addr_t, TrafficData, IPAddressHash, IPAddressEqual>& ipMap, std::unordered_map<ip_addr_t, SusIpData, IPAddressHash, IPAddressEqual>& susIpMap)
 {
 	while (true) {
 		try {
@@ -284,7 +292,7 @@ void processUnirecRecords(UnirecBidirectionalInterface& biInterface, std::unorde
 void monitorOfIpMap(){
 	while (true) {
 		for (auto it = ipMap.begin(); it != ipMap.end(); ) {
-			const auto& [key, entry] = *it;
+			auto& [key, entry] = *it;
 			//if ip wasnt used for a extended period, the node will be erased
 			if(entry.dst == 0 && entry.src == 0 && entry.syn == 0){
 				if (entry.deathFlag == false){
@@ -302,7 +310,7 @@ void monitorOfIpMap(){
 				if (((double)entry.syn/ entry.src) > synSrcRatio){
 					//ip is sus
 					writeAccess.lock();
-					susIpMap.insert(key);
+					susIpMap[key];
 					it = ipMap.erase(it);
 					writeAccess.unlock();
 				}
@@ -345,7 +353,7 @@ void monitorOfSusIpMap(){
 				continue;
 			}
 			int cnt = 0;
-			for (auto it2 = entry.dstIpMap.begin(); it2 != entry.dst.IpMap.end(); ){
+			for (auto it2 = entry.dstIpMap.begin(); it2 != entry.dstIpMap.end(); ){
 				const auto& [key1, entry1] = *it2;
 				if (entry1.count == entry1.portMap.size()){
 					++cnt;

@@ -15,6 +15,8 @@
 #include <optional>
 #include <iostream>
 
+using namespace Nemea;
+
 class CircularBuffer {
 public:
     CircularBuffer(int n) : buffer(std::make_unique<Line[]>(n)), head(nullptr), tail(nullptr), count(0), maxlines(n) {
@@ -39,7 +41,7 @@ public:
             tail->unirecRecord = unirecRecord;
             tail = tail->next;
             ++count;
-            return nullptr;
+            return std::nullopt;
         }
     }
 
