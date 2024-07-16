@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "logger.hpp"
+#include "logger/logger.hpp"
 
 #include <string>
 #include <vector>

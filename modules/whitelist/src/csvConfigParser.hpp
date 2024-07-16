@@ -10,7 +10,7 @@
 #pragma once
 
 #include "configParser.hpp"
-#include "logger.hpp"
+#include "logger/logger.hpp"
 
 #include <memory>
 #include <rapidcsv.h>

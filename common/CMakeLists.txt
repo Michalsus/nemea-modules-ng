@@ -1,11 +1,11 @@
 add_subdirectory(external)
 
 set(LOGGER_SRC
-	src/logger.cpp
+	src/logger/logger.cpp
 )
 
 set(UNIREC_TELEMETRY_SRC
-	src/unirec-telemetry.cpp
+	src/unirec/unirec-telemetry.cpp
 )
 
 add_library(common OBJECT ${LOGGER_SRC} ${UNIREC_TELEMETRY_SRC})

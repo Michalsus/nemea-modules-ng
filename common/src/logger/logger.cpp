@@ -6,7 +6,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "logger.hpp"
+#include "logger/logger.hpp"
 
 #include <spdlog/cfg/env.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
@@ -40,4 +40,3 @@ std::shared_ptr<spdlog::logger> loggerGet(std::string_view name)
 }
 
 } // namespace nm
-

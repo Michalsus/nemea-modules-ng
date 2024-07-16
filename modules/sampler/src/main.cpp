@@ -12,9 +12,9 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "logger.hpp"
+#include "logger/logger.hpp"
 #include "sampler.hpp"
-#include "unirec-telemetry.hpp"
+#include "unirec/unirec-telemetry.hpp"
 
 #include <appFs.hpp>
 #include <argparse/argparse.hpp>
