@@ -14,9 +14,11 @@ BuildRequires: git
 BuildRequires: cmake >= 3.12
 BuildRequires: libtrap-devel
 BuildRequires: unirec >= 3.0.0
+BuildRequires: ncurses-devel
 
 Requires: libtrap
 Requires: unirec
+Requires: ncurses
 
 %description
 The package contains tools, configuration files and traffic samples
