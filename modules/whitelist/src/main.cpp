@@ -13,7 +13,7 @@
  */
 
 #include "csvConfigParser.hpp"
-#include "logger.hpp"
+#include "logger/logger.hpp"
 #include "unirec-telemetry.hpp"
 #include "whitelist.hpp"
 

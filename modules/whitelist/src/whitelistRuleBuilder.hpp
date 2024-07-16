@@ -9,7 +9,7 @@
 #pragma once
 
 #include "configParser.hpp"
-#include "logger.hpp"
+#include "logger/logger.hpp"
 #include "whitelistRule.hpp"
 
 #include <memory>

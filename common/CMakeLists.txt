@@ -1,7 +1,7 @@
 add_subdirectory(external)
 
 set(LOGGER_SRC
-	src/logger.cpp
+	src/logger/logger.cpp
 )
 
 set(UNIREC_TELEMETRY_SRC
