@@ -14,7 +14,7 @@
 
 #include "csvConfigParser.hpp"
 #include "logger/logger.hpp"
-#include "unirec-telemetry.hpp"
+#include "unirec/unirec-telemetry.hpp"
 #include "whitelist.hpp"
 
 #include <appFs.hpp>

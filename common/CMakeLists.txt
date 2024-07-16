@@ -5,7 +5,7 @@ set(LOGGER_SRC
 )
 
 set(UNIREC_TELEMETRY_SRC
-	src/unirec-telemetry.cpp
+	src/unirec/unirec-telemetry.cpp
 )
 
 add_library(common OBJECT ${LOGGER_SRC} ${UNIREC_TELEMETRY_SRC})

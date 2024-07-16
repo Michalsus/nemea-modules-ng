@@ -6,7 +6,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "unirec-telemetry.hpp"
+#include "unirec/unirec-telemetry.hpp"
 
 namespace nm {
 
