@@ -1,6 +1,7 @@
 add_executable(telemetry_stats
 	main.cpp
 	outputPlugin.cpp
+	appfs-plugin.cpp
 )
 
 target_link_libraries(telemetry_stats PRIVATE
