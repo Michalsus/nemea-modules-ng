@@ -8,15 +8,15 @@
 
 #include "unirec/unirec-telemetry.hpp"
 
-namespace nm {
+namespace Nm {
 
 static double getMissedPercentage(const Nemea::InputInteraceStats& stats)
 {
-	if (!stats.receivedRecords && !stats.missedRecords) {
+	if (stats.receivedRecords == 0 && stats.missedRecords == 0) {
 		return 0;
 	}
 
-	double fraction = static_cast<double>(stats.missedRecords)
+	const double fraction = static_cast<double>(stats.missedRecords)
 		/ static_cast<double>(stats.receivedRecords + stats.missedRecords);
 
 	const int fractionToPercentage = 100;
@@ -45,4 +45,4 @@ telemetry::Content getInterfaceTelemetry(const Nemea::UnirecInputInterface& inte
 	return createInterfaceTelemetry(stats);
 }
 
-} // namespace nm
+} // namespace Nm

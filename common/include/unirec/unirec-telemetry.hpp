@@ -22,7 +22,7 @@
 #include <telemetry.hpp>
 #include <unirec++/unirec.hpp>
 
-namespace nm {
+namespace Nm {
 
 /**
  * @brief Retrieves telemetry data for an input Unirec interface.
@@ -44,4 +44,4 @@ telemetry::Content getInterfaceTelemetry(const Nemea::UnirecInputInterface& inte
  */
 telemetry::Content getInterfaceTelemetry(const Nemea::UnirecBidirectionalInterface& interface);
 
-} // namespace nm
+} // namespace Nm

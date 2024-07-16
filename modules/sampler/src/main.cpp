@@ -31,7 +31,7 @@ std::atomic<bool> g_stopFlag(false);
 
 void signalHandler(int signum)
 {
-	nm::loggerGet("signalHandler")->info("Interrupt signal {} received", signum);
+	Nm::loggerGet("signalHandler")->info("Interrupt signal {} received", signum);
 	g_stopFlag.store(true);
 }
 
@@ -111,8 +111,8 @@ int main(int argc, char** argv)
 
 	Unirec unirec({1, 1, "sampler", "Unirec sampling module"});
 
-	nm::loggerInit();
-	auto logger = nm::loggerGet("main");
+	Nm::loggerInit();
+	auto logger = Nm::loggerGet("main");
 
 	signal(SIGINT, signalHandler);
 
@@ -183,7 +183,7 @@ int main(int argc, char** argv)
 
 		auto telemetryInputDirectory = telemetryRootDirectory->addDir("input");
 		const telemetry::FileOps inputFileOps
-			= {[&biInterface]() { return nm::getInterfaceTelemetry(biInterface); }, nullptr};
+			= {[&biInterface]() { return Nm::getInterfaceTelemetry(biInterface); }, nullptr};
 		const auto inputFile = telemetryInputDirectory->addFile("stats", inputFileOps);
 
 		auto telemetrySamplerDirectory = telemetryRootDirectory->addDir("sampler");

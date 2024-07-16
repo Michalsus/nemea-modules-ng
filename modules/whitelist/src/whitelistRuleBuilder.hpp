@@ -44,7 +44,7 @@ private:
 	RuleField createRuleField(const std::string& fieldValue, ur_field_id_t fieldId);
 
 	std::vector<ur_field_id_t> m_unirecFieldsId;
-	std::shared_ptr<spdlog::logger> m_logger = nm::loggerGet("WhitelistRuleBuilder");
+	std::shared_ptr<spdlog::logger> m_logger = Nm::loggerGet("WhitelistRuleBuilder");
 };
 
 } // namespace Whitelist

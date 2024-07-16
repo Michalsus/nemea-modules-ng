@@ -16,7 +16,7 @@
 #include <stdexcept>
 #include <type_traits>
 
-namespace nm {
+namespace Nm {
 
 /**
  * @brief Struct for registering plugins with the factory.
@@ -54,4 +54,4 @@ struct PluginFactoryRegistrator {
 	}
 };
 
-} // namespace nm
+} // namespace Nm

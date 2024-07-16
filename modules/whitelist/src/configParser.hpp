@@ -82,7 +82,7 @@ private:
 	std::vector<UnirecTypeName> m_unirecTemplateDescription;
 	std::vector<WhitelistRuleDescription> m_whitelistRulesDescription;
 
-	std::shared_ptr<spdlog::logger> m_logger = nm::loggerGet("ConfigParser");
+	std::shared_ptr<spdlog::logger> m_logger = Nm::loggerGet("ConfigParser");
 };
 
 } // namespace Whitelist
