@@ -1,7 +1,7 @@
 name: check
 
 on: [workflow_call]
-    
+
 jobs:
   clang-checks:
     runs-on: ubuntu-latest
@@ -12,7 +12,8 @@ jobs:
     - name: Install dependencies
       run: |
         dnf copr enable @CESNET/NEMEA
-        dnf install -y make gcc-c++ clang clang-tools-extra libtrap-devel unirec cmake3 git rpm-build fuse3-devel
+        dnf install -y make gcc-c++ clang clang-tools-extra cmake3 git rpm-build
+        dnf install -y libtrap-devel unirec fuse3-devel ncurses-devel
     - name: make format-check
       run: make format
     - name: make tidy-check

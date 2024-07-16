@@ -1,6 +1,6 @@
 name: upload SRPM to copr
 
-on: 
+on:
   push:
     branches:
       - release
@@ -14,7 +14,8 @@ jobs:
       run: |
         dnf install -y dnf-plugins-core epel-release
         dnf -y copr enable @CESNET/NEMEA
-        dnf install -y make gcc-c++ libtrap-devel unirec cmake3 git rpm-build copr-cli fuse3-devel
+        dnf install -y make gcc-c++ cmake3 git rpm-build copr-cli
+        dnf install -y libtrap-devel unirec fuse3-devel ncurses-devel
     - name: Check out repository code
       uses: actions/checkout@v4
     - name: Mark github workspace as safe
@@ -24,8 +25,8 @@ jobs:
     - name: Create copr config
       run: |
         mkdir ~/.config
-        echo "${{ secrets.COPR_CONFIG }}" >> ~/.config/copr 
-    - name: Upload SRPM to copr	
+        echo "${{ secrets.COPR_CONFIG }}" >> ~/.config/copr
+    - name: Upload SRPM to copr
       run: |
         copr build @CESNET/NEMEA build/pkg/rpm/rpmbuild/SRPMS/*
         copr build @CESNET/NEMEA-stable build/pkg/rpm/rpmbuild/SRPMS/*
