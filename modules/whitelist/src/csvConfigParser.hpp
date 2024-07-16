@@ -40,7 +40,7 @@ private:
 
 	rapidcsv::Document m_csvDocument;
 
-	std::shared_ptr<spdlog::logger> m_logger = nm::loggerGet("CsvConfigParser");
+	std::shared_ptr<spdlog::logger> m_logger = Nm::loggerGet("CsvConfigParser");
 };
 
 } // namespace Whitelist

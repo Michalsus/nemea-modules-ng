@@ -22,7 +22,7 @@
 #include <utility>
 #include <vector>
 
-namespace nm {
+namespace Nm {
 
 /**
  * @brief Type alias for a function that generates a plugin instance.
@@ -121,4 +121,4 @@ private:
 	std::map<PluginManifest, Generator> m_registeredPlugins;
 };
 
-} // namespace nm
+} // namespace Nm

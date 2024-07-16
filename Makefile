@@ -14,7 +14,7 @@ ifeq ($(RUN_CLANG_TIDY),)
 RUN_CLANG_TIDY := run-clang-tidy
 endif
 
-SOURCE_DIR = modules/
+SOURCE_DIR = modules/ common/
 SOURCE_REGEX = '.*\.\(cpp\|hpp\|c\|h\)'
 
 .PHONY: all

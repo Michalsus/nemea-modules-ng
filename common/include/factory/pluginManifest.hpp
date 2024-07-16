@@ -16,7 +16,7 @@
 #include <functional>
 #include <string>
 
-namespace nm {
+namespace Nm {
 
 /**
  * @brief Type alias for a plugin usage information function.
@@ -45,4 +45,4 @@ inline bool operator==(const PluginManifest& lhs, const PluginManifest& rhs)
 	return lhs.name == rhs.name;
 }
 
-} // namespace nm
+} // namespace Nm

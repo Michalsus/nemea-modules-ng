@@ -14,9 +14,9 @@
 
 #include <mutex>
 
-namespace nm {
+namespace Nm {
 
-static std::mutex loggerGetMutex;
+static std::mutex g_loggerGetMutex;
 
 void loggerInit()
 {
@@ -26,7 +26,7 @@ void loggerInit()
 
 std::shared_ptr<spdlog::logger> loggerGet(std::string_view name)
 {
-	std::lock_guard<std::mutex> guard(loggerGetMutex);
+	const std::lock_guard<std::mutex> guard(g_loggerGetMutex);
 
 	const std::string tmp {name};
 	auto logger = spdlog::get(tmp);
@@ -39,4 +39,4 @@ std::shared_ptr<spdlog::logger> loggerGet(std::string_view name)
 	return spdlog::stdout_color_mt(tmp);
 }
 
-} // namespace nm
+} // namespace Nm

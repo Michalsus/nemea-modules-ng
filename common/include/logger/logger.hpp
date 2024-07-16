@@ -11,7 +11,7 @@
 #include <spdlog/spdlog.h>
 #include <string_view>
 
-namespace nm {
+namespace Nm {
 
 /**
  * @brief Perform default initialization of spdlog library.
@@ -31,5 +31,4 @@ void loggerInit();
  */
 std::shared_ptr<spdlog::logger> loggerGet(std::string_view name);
 
-} // namespace nm
-
+} // namespace Nm
