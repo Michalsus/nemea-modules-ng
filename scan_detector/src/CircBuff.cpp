@@ -28,10 +28,10 @@ public:
         tail = &buffer[0];
     }
 
-    std::optional<UnirecRecordView> buffInsert(const UnirecRecordView& unirecRecord) {
+    std::optional<UnirecRecord> buffInsert(const UnirecRecord unirecRecord) {
         if (count == maxlines) {
             // Buffer is full, overwrite the oldest element
-            std::optional<UnirecRecordView> tmp = head->unirecRecord;
+            UnirecRecord tmp = head->unirecRecord;
             head->unirecRecord = unirecRecord;
             head = head->next;
             tail = tail->next;
@@ -45,10 +45,14 @@ public:
         }
     }
 
+    int size() const {
+        return count;
+    }
+
 private:
     struct Line {
         Line* next;
-        std::optional<UnirecRecordView> unirecRecord; // Using std::optional<UnirecRecordView> instead of char*
+        UnirecRecord unirecRecord;
     };
 
     std::unique_ptr<Line[]> buffer; // Array of Line structures

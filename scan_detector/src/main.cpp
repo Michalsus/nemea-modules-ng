@@ -78,8 +78,8 @@ struct IpData
 
 struct SusIpData
 {
-	std::vector<UnirecRecordView> inRecords;
-	std::vector<UnirecRecordView> outRecords;
+	std::vector<UnirecRecord> inRecords;
+	std::vector<UnirecRecord> outRecords;
 	std::unordered_map<ip_addr_t, IpData, IPAddressHash, IPAddressEqual> dstIpMap;
 	uint64_t syn;
 
@@ -87,9 +87,10 @@ struct SusIpData
 };
 
 //function declarations, definitions are after main
-void handleFormatChange(UnirecBidirectionalInterface& biInterface);
-void processNextRecord(UnirecBidirectionalInterface& biInterface, std::unordered_map<ip_addr_t, TrafficData, IPAddressHash, IPAddressEqual>& ipMap, std::unordered_map<ip_addr_t, SusIpData, IPAddressHash, IPAddressEqual>& susIpMap);
-void processUnirecRecords(UnirecBidirectionalInterface& biInterface, std::unordered_map<ip_addr_t, TrafficData, IPAddressHash, IPAddressEqual>& ipMap, std::unordered_map<ip_addr_t, SusIpData, IPAddressHash, IPAddressEqual>& susIpMap);
+void handleFormatChange(UnirecInputInterface& iInterface);
+void processNextRecord(UnirecInputInterface& iInterface);
+void processUnirecRecords(UnirecInputInterface& iInterface);
+void categorizeUnirecRecord(UnirecRecord unirecRecord);
 void monitorOfIpMap();
 void monitorOfSusIpMap();
 
@@ -131,18 +132,19 @@ int main(int argc, char** argv)//TODO slowly add onto main to test individual pa
 	} catch (const std::exception& ex) {
 		//logger->error(ex.what());
 		std::cerr << program;
+
 		return EXIT_FAILURE;
 	}
 
 	try {
-		UnirecBidirectionalInterface biInterface = unirec.buildBidirectionalInterface();
-		biInterface.setRequieredFormat("");
+		UnirecInputInterface iInterface = unirec.buildInputInterface();
+		iInterface.setRequieredFormat("ipaddr DST_IP,ipaddr SRC_IP,uint8 TCP_FLAGS,uint16 DST_PORT");
 
 		//initiate the threads
-		std::thread t1(monitorOfIpMap);
-		std::thread t2(monitorOfSusIpMap);
+		//std::thread t1(monitorOfIpMap);
+		//std::thread t2(monitorOfSusIpMap);
 
-		processUnirecRecords(biInterface, ipMap, susIpMap);
+		processUnirecRecords(iInterface);
 
 	} catch (std::exception& ex) {
 		//logger->error(ex.what());
@@ -158,11 +160,11 @@ int main(int argc, char** argv)//TODO slowly add onto main to test individual pa
  * This function is called when a `FormatChangeException` is caught in the main loop.
  * It adjusts the template in the bidirectional interface to handle the format change.
  *
- * @param biInterface Bidirectional interface for Unirec communication.
+ * @param iInterface Bidirectional interface for Unirec communication.
  */
-void handleFormatChange(UnirecBidirectionalInterface& biInterface)
+void handleFormatChange(UnirecInputInterface& iInterface)
 {
-	biInterface.changeTemplate();
+	iInterface.changeTemplate();
 }
 
 /**
@@ -171,86 +173,27 @@ void handleFormatChange(UnirecBidirectionalInterface& biInterface)
  * This function receives the UnirecRecord and puts it into the Buffer. Then makes statistics about 
  * both the DST_IP and SRC_IP. If the SRC_IP is already in suspicious category, then it makes more detailed statistics.
  *
- * @param biInterface Bidirectional interface for Unirec communication
- * @param ipMap hash table to store every IP currently in the buffer
- * @param susIpMap hash table to store suspicious IP's
+ * @param iInterface Bidirectional interface for Unirec communication
  */
-void processNextRecord(UnirecBidirectionalInterface& biInterface, std::unordered_map<ip_addr_t, TrafficData, IPAddressHash, IPAddressEqual>& ipMap, std::unordered_map<ip_addr_t, SusIpData, IPAddressHash, IPAddressEqual>& susIpMap)
+void processNextRecord(UnirecInputInterface& iInterface)
 {
 	writeAccess.lock();
-	const static ur_field_id_t SRC_IP = ur_get_id_by_name("SRC_IP");
-	const static ur_field_id_t DST_IP = ur_get_id_by_name("DST_IP");
-	const static ur_field_id_t TCP_FLAGS = ur_get_id_by_name("TCP_FLAGS");
-	const static ur_field_id_t DST_PORT = ur_get_id_by_name("DST_PORT");
-
-
-	std::optional<UnirecRecordView> unirecRecord = biInterface.receive();
-	if (!unirecRecord) {
+	std::optional<UnirecRecordView> uniRecord = iInterface.receive();
+	if (!uniRecord) {
 		return;
 	}
+	UnirecRecord unirecRecord;
+    unirecRecord.copyFieldsFrom(*uniRecord);
 	//update statistics for incoming record
-	ip_addr_t src = unirecRecord->getFieldAsType<ip_addr_t>(SRC_IP);//?check if the ip is in the sus category
-	// vs IpAddress src = unirecRecord->getFieldAsType<IpAddress>(SRC_IP);
-	ip_addr_t dst = unirecRecord->getFieldAsType<ip_addr_t>(DST_IP);
-	auto tcp = unirecRecord->getFieldAsType<uint8_t>(TCP_FLAGS);
-	if(susIpMap.find(src) != susIpMap.end()){
-		if(tcp == 2){
-			susIpMap[src].syn++;
-		}
-		//associative array of ips and number of times they were mentioned
-		//susIpMap[src].dstIpMap.insert(dst);
-		susIpMap[src].dstIpMap[dst].count++;
-		//array of ports and number of times they were used
-		auto port = unirecRecord->getFieldAsType<uint16_t>(DST_PORT);
-		//susIpMap[src].dstIpMap[dst].portMap.insert(port);
-		susIpMap[src].dstIpMap[dst].portMap[port]++;
-		//insert unirecRecord from suspicious ip
-		susIpMap[src].outRecords.push_back(*unirecRecord);
-	}
-	else if (susIpMap.find(dst) != susIpMap.end()){
-		susIpMap[dst].inRecords.push_back(*unirecRecord);
-	}
-	else {
-		ipMap[src].src++;
-		ipMap[dst].dst++;
-		if(tcp == 2){
-			ipMap[src].syn++;
-		}
-	}
+	categorizeUnirecRecord(unirecRecord);
 
-	unirecRecord = circBuff.buffInsert(*unirecRecord);
-	if (!unirecRecord){
-		src = unirecRecord->getFieldAsType<ip_addr_t>(SRC_IP);
-		dst = unirecRecord->getFieldAsType<ip_addr_t>(DST_IP);
-		if (susIpMap.find(src) != susIpMap.end()){
-			//number of only syn traffic from suspicious ip
-			auto tcp = unirecRecord->getFieldAsType<uint8_t>(TCP_FLAGS);
-			if(tcp == 2){
-				susIpMap[src].syn++;
-			}
-			//associative array of ips and number of times they were mentioned
-			//susIpMap[src].dstIpMap.insert(dst);
-			susIpMap[src].dstIpMap[dst].count++;
-			//array of ports and number of times they were used
-			auto port = unirecRecord->getFieldAsType<uint16_t>(DST_PORT);
-			//susIpMap[src].dstIpMap[dst].portMap.insert(port);
-			susIpMap[src].dstIpMap[dst].portMap[port]++;
-			//insert unirecRecord from suspicious ip
-			susIpMap[src].outRecords.push_back(*unirecRecord);
-		}
-		else if (susIpMap.find(dst) != susIpMap.end()){
-			susIpMap[dst].inRecords.push_back(*unirecRecord);
-		}
-		else {
-			ipMap[src].src--;
-			ipMap[dst].dst--;
-			auto tcp = unirecRecord->getFieldAsType<uint8_t>(TCP_FLAGS);
-			if(tcp == 2){
-				ipMap[src].syn--;
-			}
-			biInterface.send(*unirecRecord);
-		}
+	std::optional<UnirecRecord> tmpRecord = circBuff.buffInsert(unirecRecord);
+	if(!tmpRecord){
+		return;
 	}
+	unirecRecord = tmpRecord.value();
+
+	categorizeUnirecRecord(unirecRecord);
 	writeAccess.unlock();
 	return;
 }
@@ -259,20 +202,19 @@ void processNextRecord(UnirecBidirectionalInterface& biInterface, std::unordered
  * @brief Process Unirec records.
  *
  * The `processUnirecRecords` function continuously receives Unirec records through the provided
- * bidirectional interface (`biInterface`) and does categorization. The loop runs indefinitely until
+ * bidirectional interface (`iInterface`) and does categorization. The loop runs indefinitely until
  * an end-of-file condition is encountered.
  *
- * @param biInterface Bidirectional interface for Unirec communication.
- * @param ipMap hash table to store every IP currently in the buffer
- * @param susIpMap hash table to store suspicious IP's
+ * @param iInterface Bidirectional interface for Unirec communication.
  */
-void processUnirecRecords(UnirecBidirectionalInterface& biInterface, std::unordered_map<ip_addr_t, TrafficData, IPAddressHash, IPAddressEqual>& ipMap, std::unordered_map<ip_addr_t, SusIpData, IPAddressHash, IPAddressEqual>& susIpMap)
+void processUnirecRecords(UnirecInputInterface& iInterface)
 {
 	while (true) {
 		try {
-			processNextRecord(biInterface, ipMap, susIpMap);
+			printf("%d\n", circBuff.size());
+			processNextRecord(iInterface);
 		} catch (FormatChangeException& ex) {
-			handleFormatChange(biInterface);
+			handleFormatChange(iInterface);
 		} catch (EoFException& ex) {
 			break;
 		} catch (std::exception& ex) {
@@ -369,3 +311,46 @@ void monitorOfSusIpMap(){
 		}
 	}
 }
+
+/**
+ * @brief Categorizes based on IPs
+ * 
+ * This function takes a Unirec Record and updates statistics held in tables based on the SRC_IP and DST_IP.
+ * 
+ * @param unirecRecord received Unirec Record 
+ */
+void categorizeUnirecRecord(UnirecRecord unirecRecord){
+	const static ur_field_id_t SRC_IP = ur_get_id_by_name("SRC_IP");
+	const static ur_field_id_t DST_IP = ur_get_id_by_name("DST_IP");
+	const static ur_field_id_t TCP_FLAGS = ur_get_id_by_name("TCP_FLAGS");
+	const static ur_field_id_t DST_PORT = ur_get_id_by_name("DST_PORT");
+	
+	IpAddress srcStruct = unirecRecord.getFieldAsType<IpAddress>(SRC_IP);
+	ip_addr_t src = srcStruct.ip;
+	IpAddress dstStruct = unirecRecord.getFieldAsType<IpAddress>(DST_IP);
+	ip_addr_t dst = dstStruct.ip;
+	uint8_t tcp = unirecRecord.getFieldAsType<uint8_t>(TCP_FLAGS);
+	if(susIpMap.find(src) != susIpMap.end()){
+		if(tcp == 2){
+			susIpMap[src].syn++;
+		}
+		//associative array of ips and number of times they were mentioned
+		susIpMap[src].dstIpMap[dst].count++;
+		//array of ports and number of times they were used
+		uint16_t port = unirecRecord.getFieldAsType<uint16_t>(DST_PORT);
+		susIpMap[src].dstIpMap[dst].portMap[port]++;
+		//insert unirecRecord from suspicious ip
+		susIpMap[src].outRecords.push_back(unirecRecord);
+	}
+	else if (susIpMap.find(dst) != susIpMap.end()){
+		susIpMap[dst].inRecords.push_back(unirecRecord);
+	}
+	else {
+		ipMap[src].src++;
+		ipMap[dst].dst++;
+		if(tcp == 2){
+			ipMap[src].syn++;
+		}
+	}
+}
+
