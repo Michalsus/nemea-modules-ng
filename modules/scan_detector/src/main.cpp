@@ -142,7 +142,7 @@ int main(int argc, char** argv)//TODO slowly add onto main to test individual pa
 
 	try {
 		UnirecInputInterface iInterface = unirec.buildInputInterface();
-		iInterface.setRequieredFormat("ipaddr DST_IP,ipaddr SRC_IP,uint8 TCP_FLAGS,uint16 DST_PORT");
+		iInterface.setRequieredFormat("ipaddr DST_IP, ipaddr SRC_IP, uint8 TCP_FLAGS, uint16 DST_PORT");
 
 		//initiate the threads
 		//std::thread t1(monitorOfIpMap);
@@ -196,7 +196,7 @@ void processNextRecord(UnirecInputInterface& iInterface)
 	//the problem is that the .receive() method seems to work but the uniRecord doesnt have value 
 
 	UnirecRecord unirecRecord;
-    unirecRecord.copyFieldsFrom(*uRView);//<- here it fails to copy fields
+    unirecRecord.copyFieldsFrom(*uniRecord);//<- here it fails to copy fields
 	//update statistics for incoming record
 	categorizeUnirecRecord(unirecRecord);
 
@@ -229,11 +229,13 @@ void processUnirecRecords(UnirecInputInterface& iInterface)
 			printf("%d\n", circBuff.size());
 			processNextRecord(iInterface);
 		} catch (FormatChangeException& ex) {
+			printf("format change\n");
 			handleFormatChange(iInterface);
 			writeAccess.unlock();
 		} catch (EoFException& ex) {
 			break;
 		} catch (std::exception& ex) {
+			std::cerr << "Exception caught: " << ex.what() << std::endl;
 			throw;
 		}
 	}
