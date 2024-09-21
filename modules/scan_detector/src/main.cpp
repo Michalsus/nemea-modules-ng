@@ -88,8 +88,8 @@ struct SusIpData
 
 //function declarations, definitions are after main
 void handleFormatChange(UnirecInputInterface& iInterface);
-void processNextRecord(UnirecInputInterface& iInterface);
-void processUnirecRecords(UnirecInputInterface& iInterface);
+void processNextRecord(UnirecInputInterface& iInterface, CircularBuffer& circBuff);
+void processUnirecRecords(UnirecInputInterface& iInterface, CircularBuffer& circBuff);
 void categorizeUnirecRecord(UnirecRecord unirecRecord);
 void monitorOfIpMap();
 void monitorOfSusIpMap();
@@ -100,11 +100,6 @@ size_t minSize = 30;
 double susNorRatio = 0.9;
 double srcDstRatio = 0.5;
 double synSrcRatio = 0.5;
-const ur_field_id_t SRC_IP = ur_get_id_by_name("SRC_IP");
-const ur_field_id_t DST_IP = ur_get_id_by_name("DST_IP");
-const ur_field_id_t TCP_FLAGS = ur_get_id_by_name("TCP_FLAGS");
-const ur_field_id_t DST_PORT = ur_get_id_by_name("DST_PORT");
-CircularBuffer circBuff(bufferSize);
 std::mutex writeAccess;
 //Hash map for storing statistics about each ip adresses
 std::unordered_map<ip_addr_t, TrafficData, IPAddressHash, IPAddressEqual> ipMap;
@@ -112,7 +107,7 @@ std::unordered_map<ip_addr_t, SusIpData, IPAddressHash, IPAddressEqual> susIpMap
 
 
 
-int main(int argc, char** argv)//TODO slowly add onto main to test individual parts
+int main(int argc, char** argv)
 {
 	argparse::ArgumentParser program("Scan Detector");
 
@@ -142,13 +137,18 @@ int main(int argc, char** argv)//TODO slowly add onto main to test individual pa
 
 	try {
 		UnirecInputInterface iInterface = unirec.buildInputInterface();
-		iInterface.setRequieredFormat("ipaddr DST_IP, ipaddr SRC_IP, uint8 TCP_FLAGS, uint16 DST_PORT");
+		iInterface.setRequieredFormat("ipaddr SRC_IP, ipaddr DST_IP, uint8 TCP_FLAGS, uint16 DST_PORT");
+
+		CircularBuffer circBuff(bufferSize, iInterface.getTemplate(), 0);
 
 		//initiate the threads
-		//std::thread t1(monitorOfIpMap);
-		//std::thread t2(monitorOfSusIpMap);
+		std::thread t1(monitorOfIpMap);
+		std::thread t2(monitorOfSusIpMap);
 
-		processUnirecRecords(iInterface);
+		processUnirecRecords(iInterface, circBuff);
+
+		t1.join();
+		t2.join();
 
 	} catch (std::exception& ex) {
 		//logger->error(ex.what());
@@ -179,7 +179,7 @@ void handleFormatChange(UnirecInputInterface& iInterface)
  *
  * @param iInterface Bidirectional interface for Unirec communication
  */
-void processNextRecord(UnirecInputInterface& iInterface)
+void processNextRecord(UnirecInputInterface& iInterface, CircularBuffer& circBuff)
 {
 
 	writeAccess.lock();
@@ -193,10 +193,8 @@ void processNextRecord(UnirecInputInterface& iInterface)
 	//	exit(EXIT_FAILURE);
 	//	//return;
 	//}
-	//the problem is that the .receive() method seems to work but the uniRecord doesnt have value 
-
-	UnirecRecord unirecRecord;
-    unirecRecord.copyFieldsFrom(*uniRecord);//<- here it fails to copy fields
+	UnirecRecord unirecRecord(iInterface.getTemplate(), 0);
+    unirecRecord.copyFieldsFrom(*uniRecord);
 	//update statistics for incoming record
 	categorizeUnirecRecord(unirecRecord);
 
@@ -222,12 +220,12 @@ void processNextRecord(UnirecInputInterface& iInterface)
  *
  * @param iInterface Bidirectional interface for Unirec communication.
  */
-void processUnirecRecords(UnirecInputInterface& iInterface)
+void processUnirecRecords(UnirecInputInterface& iInterface, CircularBuffer& circBuff)
 {
 	while (true) {
 		try {
-			printf("%d\n", circBuff.size());
-			processNextRecord(iInterface);
+			//printf("%d\n", circBuff.size());
+			processNextRecord(iInterface, circBuff);
 		} catch (FormatChangeException& ex) {
 			printf("format change\n");
 			handleFormatChange(iInterface);
@@ -338,9 +336,13 @@ void monitorOfSusIpMap(){
  * @param unirecRecord received Unirec Record 
  */
 void categorizeUnirecRecord(UnirecRecord unirecRecord){
-	
-	
+	static const ur_field_id_t SRC_IP = ur_get_id_by_name("SRC_IP");
+	static const ur_field_id_t DST_IP = ur_get_id_by_name("DST_IP");
+	static const ur_field_id_t TCP_FLAGS = ur_get_id_by_name("TCP_FLAGS");
+	static const ur_field_id_t DST_PORT = ur_get_id_by_name("DST_PORT");
+
 	IpAddress srcStruct = unirecRecord.getFieldAsType<IpAddress>(SRC_IP);
+	printf("mrdka\n");
 	ip_addr_t src = srcStruct.ip;
 	IpAddress dstStruct = unirecRecord.getFieldAsType<IpAddress>(DST_IP);
 	ip_addr_t dst = dstStruct.ip;

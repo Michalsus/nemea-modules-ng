@@ -19,10 +19,12 @@ using namespace Nemea;
 
 class CircularBuffer {
 public:
-    CircularBuffer(int n) : buffer(std::make_unique<Line[]>(n)), head(nullptr), tail(nullptr), count(0), maxlines(n) {
-        // Initialize circular references
+    CircularBuffer(int n, ur_template_t* unirecTemplate, size_t maxVariableFieldsSize) 
+        : buffer(std::make_unique<Line[]>(n)), head(nullptr), tail(nullptr), count(0), maxlines(n) {
+        // Initialize circular references and UnirecRecords
         for (int i = 0; i < n; ++i) {
-            buffer[i].next = &buffer[(i + 1) % n];
+            buffer[i].next = &buffer[(i + 1) % n]; // Setup circular buffer behavior
+            buffer[i].unirecRecord = UnirecRecord(unirecTemplate, maxVariableFieldsSize); // Initialize each UnirecRecord
         }
         head = &buffer[0];
         tail = &buffer[0];
