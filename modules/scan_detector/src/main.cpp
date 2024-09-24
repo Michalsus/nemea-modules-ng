@@ -187,18 +187,12 @@ void processNextRecord(UnirecInputInterface& iInterface, CircularBuffer& circBuf
 	if (!uniRecord) {
 		return;
 	}
-	//if (uniRecord.has_value()){
-	//	std::cout << "Record has no value" << std::endl;
-	//	writeAccess.unlock();
-	//	exit(EXIT_FAILURE);
-	//	//return;
-	//}
+	
 	UnirecRecord unirecRecord(iInterface.getTemplate(), 0);
     unirecRecord.copyFieldsFrom(*uniRecord);
 	//update statistics for incoming record
 	categorizeUnirecRecord(unirecRecord);
 
-	//question is if the use of std::optional here isnt redundant 
 	std::optional<UnirecRecord> tmpRecord = circBuff.buffInsert(unirecRecord);
 	if(!tmpRecord){//if the buffer is still not full
 		return;
@@ -336,13 +330,12 @@ void monitorOfSusIpMap(){
  * @param unirecRecord received Unirec Record 
  */
 void categorizeUnirecRecord(UnirecRecord unirecRecord){
-	static const ur_field_id_t SRC_IP = ur_get_id_by_name("SRC_IP");
+	static const ur_field_id_t SRC_IP = ur_get_id_by_name("SRC_IP");	
 	static const ur_field_id_t DST_IP = ur_get_id_by_name("DST_IP");
 	static const ur_field_id_t TCP_FLAGS = ur_get_id_by_name("TCP_FLAGS");
 	static const ur_field_id_t DST_PORT = ur_get_id_by_name("DST_PORT");
 
 	IpAddress srcStruct = unirecRecord.getFieldAsType<IpAddress>(SRC_IP);
-	printf("mrdka\n");
 	ip_addr_t src = srcStruct.ip;
 	IpAddress dstStruct = unirecRecord.getFieldAsType<IpAddress>(DST_IP);
 	ip_addr_t dst = dstStruct.ip;
